@@ -1,5 +1,3 @@
-import { Text } from 'react-native';
+import { LogsScreen } from '../../features/logs/LogsScreen';
 
-export default function Screen() {
-  return <Text>logs</Text>;
-}
+export default LogsScreen;

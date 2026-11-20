@@ -1,5 +1,3 @@
-import { Text } from 'react-native';
+import { TrendsScreen } from '../../features/trends/TrendsScreen';
 
-export default function Screen() {
-  return <Text>trends</Text>;
-}
+export default TrendsScreen;

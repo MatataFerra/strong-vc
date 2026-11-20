@@ -37,3 +37,16 @@ export async function setReminderEnabled(db: Db, id: number, enabled: boolean, m
   const notificationId = enabled && !muted ? await scheduleWeekly(r.weekday, r.hour, r.minute) : null;
   await upsertReminder(db, { ...r, enabled, notificationId });
 }
+
+/**
+ * Schedules enabled reminders that have no OS notification yet (e.g. created while permission was denied).
+ * Run at startup and when opening Ajustes; a no-op while muted.
+ */
+export async function syncReminders(db: Db, muted: boolean): Promise<void> {
+  if (muted) return;
+  for (const r of await listReminders(db)) {
+    if (!r.enabled || r.notificationId) continue;
+    const notificationId = await scheduleWeekly(r.weekday, r.hour, r.minute);
+    if (notificationId) await upsertReminder(db, { ...r, notificationId });
+  }
+}

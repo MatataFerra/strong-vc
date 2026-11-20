@@ -1,8 +1,8 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, StyleSheet, View } from 'react-native';
 
-import { addDays, localDate } from '../../core/dates';
+import { addDays, localDate, resolveLogDate } from '../../core/dates';
 import { formatDay } from '../../core/format';
 import type { DailyLog, LogKind } from '../../core/types';
 import { formatDistance, toKm } from '../../core/units';
@@ -22,6 +22,7 @@ import { space } from '../../ui/theme';
 import { useToast } from '../../ui/Toast';
 import { useAsync } from '../../ui/useAsync';
 import { Body, Muted, Title } from '../../ui/Typography';
+import { useSafeAction } from '../../ui/useSafeAction';
 
 const LABELS: Record<LogKind, string> = {
   activity: 'Actividad', sleep: 'Sueño', mood: 'Ánimo', energy: 'Energía', note: 'Nota',
@@ -44,7 +45,17 @@ export function describeLog(l: DailyLog, distanceUnit: 'km' | 'mi'): string {
 export function LogsScreen() {
   const db = useDb();
   const toast = useToast();
-  const [date, setDate] = useState(localDate(new Date()));
+  // null = follow today, so the screen rolls over at midnight; a date = the day the user picked.
+  const [pinned, setPinned] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const date = resolveLogDate(pinned, now);
+  const today = localDate(now);
+  const setDate = (d: string) => setPinned(d === localDate(new Date()) ? null : d);
+  const { run } = useSafeAction();
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && setNow(new Date()));
+    return () => sub.remove();
+  }, []);
   const [kind, setKind] = useState<LogKind>('activity');
   const [amount, setAmount] = useState('');
   const [activityUnit, setActivityUnit] = useState<'min' | 'dist'>('min');
@@ -65,18 +76,22 @@ export function LogsScreen() {
     },
     [db, date],
   );
-  useFocusEffect(useCallback(() => reload(), [reload]));
+  useFocusEffect(useCallback(() => {
+    setNow(new Date());
+    reload();
+  }, [reload]));
 
   if (loadError) return <ErrorRetry message="No se pudieron cargar tus registros." onRetry={reload} />;
   if (!data) return <Loading />;
   const distanceUnit = data.settings.distanceUnit;
 
-  const save = async (value: number | null, unit: string | null) => {
-    await addLog(db, { date, kind, value, unit, note: note.trim() || null });
-    setAmount(''); setHours(''); setMinutes(''); setNote(''); setError(null);
-    toast('Registro guardado');
-    reload();
-  };
+  const save = (value: number | null, unit: string | null) =>
+    run(async () => {
+      await addLog(db, { date, kind, value, unit, note: note.trim() || null });
+      setAmount(''); setHours(''); setMinutes(''); setNote(''); setError(null);
+      toast('Registro guardado');
+      reload();
+    });
 
   const submit = async () => {
     if (kind === 'activity') {
@@ -107,7 +122,7 @@ export function LogsScreen() {
       <View style={styles.row}>
         <Button title="‹" variant="secondary" onPress={() => setDate(addDays(date, -1))} />
         <Title style={{ flex: 1, textAlign: 'center' }}>{formatDay(date)}</Title>
-        <Button title="›" variant="secondary" onPress={() => setDate(addDays(date, 1))} disabled={date >= localDate(new Date())} />
+        <Button title="›" variant="secondary" onPress={() => setDate(addDays(date, 1))} disabled={date >= today} />
       </View>
       <Muted>Todo es opcional. Registrá solo lo que te sirva.</Muted>
 
@@ -164,7 +179,7 @@ export function LogsScreen() {
           <Card key={l.id}>
             <Body style={{ fontWeight: '600' }}>{LABELS[l.kind]} {describeLog(l, distanceUnit)}</Body>
             {l.note && <Muted>{l.note}</Muted>}
-            <Button title="Borrar" variant="secondary" onPress={async () => { await deleteLog(db, l.id); reload(); }} />
+            <Button title="Borrar" variant="secondary" onPress={() => run(async () => { await deleteLog(db, l.id); reload(); })} />
           </Card>
         ))
       )}

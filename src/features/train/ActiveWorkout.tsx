@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { localTimestamp } from '../../core/dates';
-import { REST_OPTIONS } from '../../core/restTimer';
+import { adjustedRestSeconds, REST_OPTIONS } from '../../core/restTimer';
 import type { Workout, WorkoutSet } from '../../core/types';
 import { useDb } from '../../db/DbProvider';
 import { listExercises, type Exercise } from '../../db/repos/exercises';
@@ -17,6 +17,7 @@ import { Field } from '../../ui/Field';
 import { space } from '../../ui/theme';
 import { useToast } from '../../ui/Toast';
 import { Body, Muted, Title } from '../../ui/Typography';
+import { useSafeAction } from '../../ui/useSafeAction';
 import { RestTimer } from './RestTimer';
 import { SetRow } from './SetRow';
 
@@ -35,6 +36,7 @@ export function ActiveWorkout({ workout, sets, settings, onChanged }: Props) {
   const [picker, setPicker] = useState<Exercise[] | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const { run } = useSafeAction();
 
   const groups = useMemo(() => {
     const map = new Map<string, WorkoutSet[]>();
@@ -80,11 +82,12 @@ export function ActiveWorkout({ workout, sets, settings, onChanged }: Props) {
       {
         text: 'Descartar',
         style: 'destructive',
-        onPress: async () => {
-          await stopRest();
-          await discardWorkout(db, workout.id);
-          onChanged();
-        },
+        onPress: () =>
+          run(async () => {
+            await stopRest();
+            await discardWorkout(db, workout.id);
+            onChanged();
+          }),
       },
     ]);
 
@@ -100,7 +103,7 @@ export function ActiveWorkout({ workout, sets, settings, onChanged }: Props) {
         <RestTimer
           endsAt={rest.endsAt}
           onSkip={stopRest}
-          onAdjust={(d) => startRest(Math.max(0, Math.round((rest.endsAt - Date.now()) / 1000) + d))}
+          onAdjust={(d) => run(() => startRest(adjustedRestSeconds(rest.endsAt, Date.now(), d)))}
         />
       )}
 
@@ -114,21 +117,25 @@ export function ActiveWorkout({ workout, sets, settings, onChanged }: Props) {
               set={s}
               index={i + 1}
               unit={settings.weightUnit}
-              onSave={(patch) => saveSet(s, patch)}
-              onRemove={async () => {
-                await deleteSet(db, s.id);
-                onChanged();
-              }}
+              onSave={(patch) => run(() => saveSet(s, patch))}
+              onRemove={() =>
+                run(async () => {
+                  await deleteSet(db, s.id);
+                  onChanged();
+                })
+              }
             />
           ))}
           {groupSets[0].exerciseId !== null && (
             <Button
               title="+ Serie"
               variant="secondary"
-              onPress={async () => {
-                await addSet(db, workout.id, groupSets[0].exerciseId as number);
-                onChanged();
-              }}
+              onPress={() =>
+                run(async () => {
+                  await addSet(db, workout.id, groupSets[0].exerciseId as number);
+                  onChanged();
+                })
+              }
             />
           )}
         </Card>
@@ -142,24 +149,26 @@ export function ActiveWorkout({ workout, sets, settings, onChanged }: Props) {
               key={e.id}
               title={e.name}
               variant="secondary"
-              onPress={async () => {
-                await addSet(db, workout.id, e.id);
-                setPicker(null);
-                onChanged();
-              }}
+              onPress={() =>
+                run(async () => {
+                  await addSet(db, workout.id, e.id);
+                  setPicker(null);
+                  onChanged();
+                })
+              }
             />
           ))}
           <Button title="Cancelar" variant="secondary" onPress={() => setPicker(null)} />
         </Card>
       ) : (
-        <Button title="+ Ejercicio" variant="secondary" onPress={async () => setPicker(await listExercises(db))} />
+        <Button title="+ Ejercicio" variant="secondary" onPress={() => run(async () => setPicker(await listExercises(db)))} />
       )}
 
       <Card>
         <Muted>Descanso entre series</Muted>
         <View style={styles.row}>
           {REST_OPTIONS.map((s) => (
-            <Button key={s} title={`${s} s`} variant={s === restSeconds ? 'primary' : 'secondary'} onPress={() => pickRest(s)} />
+            <Button key={s} title={`${s} s`} variant={s === restSeconds ? 'primary' : 'secondary'} onPress={() => run(() => pickRest(s))} />
           ))}
         </View>
       </Card>

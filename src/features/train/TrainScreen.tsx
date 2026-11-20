@@ -14,11 +14,13 @@ import { Loading } from '../../ui/Loading';
 import { Screen } from '../../ui/Screen';
 import { useAsync } from '../../ui/useAsync';
 import { Body, Muted, Title } from '../../ui/Typography';
+import { useSafeAction } from '../../ui/useSafeAction';
 import { ActiveWorkout } from './ActiveWorkout';
 
 export function TrainScreen() {
   const db = useDb();
   const router = useRouter();
+  const { run, busy } = useSafeAction();
   const { data, loading, error, reload } = useAsync(
     async () => ({
       active: await getActiveWorkout(db),
@@ -41,15 +43,16 @@ export function TrainScreen() {
     );
   }
 
-  const start = async (templateId: number | null) => {
-    await startWorkout(db, templateId);
-    reload();
-  };
+  const start = (templateId: number | null) =>
+    run(async () => {
+      await startWorkout(db, templateId);
+      reload();
+    });
 
   const remove = (id: number, name: string) =>
     Alert.alert(`¿Borrar "${name}"?`, 'Tu historial no cambia.', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Borrar', style: 'destructive', onPress: async () => { await deleteTemplate(db, id); reload(); } },
+      { text: 'Borrar', style: 'destructive', onPress: () => run(async () => { await deleteTemplate(db, id); reload(); }) },
     ]);
 
   return (
@@ -62,12 +65,12 @@ export function TrainScreen() {
         <Card key={t.id}>
           <Body style={{ fontWeight: '600' }}>{t.name}</Body>
           <Muted>{t.items.map((i) => `${i.exerciseName} ${i.sets}×${i.reps}`).join(' · ') || 'Sin ejercicios'}</Muted>
-          <Button testID={`start-template-${t.id}`} title="Empezar" onPress={() => start(t.id)} />
+          <Button testID={`start-template-${t.id}`} title="Empezar" onPress={() => start(t.id)} disabled={busy} />
           <Button title="Borrar plantilla" variant="secondary" onPress={() => remove(t.id, t.name)} />
         </Card>
       ))}
       <Button title="Crear plantilla" variant="secondary" onPress={() => router.push('/template/new')} />
-      <Button testID="start-free" title="Entrenamiento libre" variant="secondary" onPress={() => start(null)} />
+      <Button testID="start-free" title="Entrenamiento libre" variant="secondary" onPress={() => start(null)} disabled={busy} />
     </Screen>
   );
 }

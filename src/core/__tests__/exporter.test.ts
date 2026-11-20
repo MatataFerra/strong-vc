@@ -18,3 +18,10 @@ test('JSON export carries app identity and data', () => {
   const json = JSON.parse(buildJsonExport({ workouts: [] }, new Date('2026-11-20T10:00:00Z')));
   expect(json).toMatchObject({ app: 'strong-personal', version: 1, exportedAt: '2026-11-20T10:00:00.000Z', data: { workouts: [] } });
 });
+
+test('CSV neutralizes cells that spreadsheets would run as formulas', () => {
+  const csv = buildSetsCsv([{ ...w, name: '=HYPERLINK("x")' }], [{ ...set, exerciseName: '+Sentadilla' }]);
+  const row = csv.split('\n')[1];
+  expect(row).toContain(`"'=HYPERLINK(""x"")"`);
+  expect(row).toContain(`'+Sentadilla`);
+});

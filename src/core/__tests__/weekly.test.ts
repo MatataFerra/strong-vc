@@ -39,3 +39,9 @@ test('activity logs add minutes and active days; unfinished workouts are ignored
   const [w] = weeklySummaries([running], [], logs, 1, '2026-11-20');
   expect(w).toMatchObject({ workouts: 0, activeDays: 1, minutes: 30, avgSleepMin: 420 });
 });
+
+test('resolveLogDate follows today unless the user picked another day', () => {
+  const { resolveLogDate } = require('../dates');
+  expect(resolveLogDate(null, new Date(2026, 10, 21, 0, 5))).toBe('2026-11-21');
+  expect(resolveLogDate('2026-11-18', new Date(2026, 10, 21, 0, 5))).toBe('2026-11-18');
+});

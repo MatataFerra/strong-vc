@@ -7,7 +7,7 @@ import { getSettings, setSetting, type Settings } from '../../db/repos/settings'
 import { deleteAllData } from '../../db/repos/workouts';
 import { isHealthAvailable, isHealthEnabled, requestPermission, type HealthKind } from '../../health/healthkit';
 import { cancelAllNotifications, cancelNotification } from '../../notifications/notifications';
-import { addReminder, applyMute, setReminderEnabled } from '../../notifications/reminders';
+import { addReminder, applyMute, setReminderEnabled, syncReminders } from '../../notifications/reminders';
 import { exportData, shareFile } from '../../services/exportService';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -19,6 +19,7 @@ import { space } from '../../ui/theme';
 import { useToast } from '../../ui/Toast';
 import { useAsync } from '../../ui/useAsync';
 import { Body, Muted, Title } from '../../ui/Typography';
+import { useSafeAction } from '../../ui/useSafeAction';
 
 export const MEDICAL_DISCLAIMER =
   'Esta app no es atención médica ni reemplaza el consejo de un profesional de la salud.';
@@ -50,12 +51,17 @@ export function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [csvUri, setCsvUri] = useState<string | null>(null);
+  const { run } = useSafeAction();
   const { data, error, reload } = useAsync(
-    async () => ({
-      settings: await getSettings(db),
-      reminders: await listReminders(db),
-      healthAvailable: isHealthEnabled() && (await isHealthAvailable()),
-    }),
+    async () => {
+      const settings = await getSettings(db);
+      await syncReminders(db, settings.remindersMuted);
+      return {
+        settings,
+        reminders: await listReminders(db),
+        healthAvailable: isHealthEnabled() && (await isHealthAvailable()),
+      };
+    },
     [db],
   );
 
@@ -63,19 +69,21 @@ export function SettingsScreen() {
   if (!data) return <Loading />;
   const { settings, reminders } = data;
 
-  const update = async <K extends keyof Settings>(key: K, value: Settings[K]) => {
-    await setSetting(db, key, value);
-    reload();
-  };
+  const update = <K extends keyof Settings>(key: K, value: Settings[K]) =>
+    run(async () => {
+      await setSetting(db, key, value);
+      reload();
+    });
 
-  const toggleMute = async (muted: boolean) => {
-    await setSetting(db, 'remindersMuted', muted);
-    const { failed } = await applyMute(db, muted);
-    setNotice(failed ? NOTIF_DENIED : null);
-    reload();
-  };
+  const toggleMute = (muted: boolean) =>
+    run(async () => {
+      await setSetting(db, 'remindersMuted', muted);
+      const { failed } = await applyMute(db, muted);
+      setNotice(failed ? NOTIF_DENIED : null);
+      reload();
+    });
 
-  const add = async () => {
+  const add = () => run(async () => {
     const m = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
     const hour = m ? Number(m[1]) : NaN;
     const minute = m ? Number(m[2]) : NaN;
@@ -84,15 +92,17 @@ export function SettingsScreen() {
     setNotice(!scheduled && !settings.remindersMuted ? NOTIF_DENIED : null);
     toast('Recordatorio guardado');
     reload();
-  };
+  });
 
-  const toggleHealth = async (kind: HealthKind, key: keyof Settings, on: boolean) => {
-    if (on && !(await requestPermission(kind))) {
-      setNotice('No se pudo activar. Podés revisar los permisos en la app Salud.');
-      return;
-    }
-    await update(key, on as never);
-  };
+  const toggleHealth = (kind: HealthKind, key: keyof Settings, on: boolean) =>
+    run(async () => {
+      if (on && !(await requestPermission(kind))) {
+        setNotice('No se pudo activar. Podés revisar los permisos en la app Salud.');
+        return;
+      }
+      await setSetting(db, key, on as never);
+      reload();
+    });
 
   const doExport = async () => {
     setExporting(true);
@@ -120,12 +130,13 @@ export function SettingsScreen() {
             {
               text: 'Borrar todo',
               style: 'destructive',
-              onPress: async () => {
-                await cancelAllNotifications();
-                await deleteAllData(db);
-                toast('Datos borrados');
-                reload();
-              },
+              onPress: () =>
+                run(async () => {
+                  await cancelAllNotifications();
+                  await deleteAllData(db);
+                  toast('Datos borrados');
+                  reload();
+                }),
             },
           ]),
       },
@@ -166,19 +177,23 @@ export function SettingsScreen() {
             <Switch
               accessibilityLabel={`Recordatorio ${DAYS[r.weekday - 1]} activo`}
               value={r.enabled}
-              onValueChange={async (on) => {
-                await setReminderEnabled(db, r.id, on, settings.remindersMuted);
-                reload();
-              }}
+              onValueChange={(on) =>
+                run(async () => {
+                  await setReminderEnabled(db, r.id, on, settings.remindersMuted);
+                  reload();
+                })
+              }
             />
             <Button
               title="Quitar"
               variant="secondary"
-              onPress={async () => {
-                await cancelNotification(r.notificationId);
-                await deleteReminder(db, r.id);
-                reload();
-              }}
+              onPress={() =>
+                run(async () => {
+                  await cancelNotification(r.notificationId);
+                  await deleteReminder(db, r.id);
+                  reload();
+                })
+              }
             />
           </View>
         ))}

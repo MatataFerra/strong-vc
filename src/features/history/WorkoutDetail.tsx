@@ -15,11 +15,13 @@ import { Screen } from '../../ui/Screen';
 import { useToast } from '../../ui/Toast';
 import { useAsync } from '../../ui/useAsync';
 import { Body, Muted, Title } from '../../ui/Typography';
+import { useSafeAction } from '../../ui/useSafeAction';
 
 export function WorkoutDetail({ id }: { id: number }) {
   const db = useDb();
   const router = useRouter();
   const toast = useToast();
+  const { run } = useSafeAction();
   const { data, error, reload } = useAsync(
     async () => ({ workout: await getWorkout(db, id), sets: await getWorkoutSets(db, id), settings: await getSettings(db) }),
     [db, id],
@@ -39,11 +41,12 @@ export function WorkoutDetail({ id }: { id: number }) {
       {
         text: 'Borrar',
         style: 'destructive',
-        onPress: async () => {
-          await deleteWorkout(db, id);
-          toast('Entrenamiento borrado');
-          router.back();
-        },
+        onPress: () =>
+          run(async () => {
+            await deleteWorkout(db, id);
+            toast('Entrenamiento borrado');
+            router.back();
+          }),
       },
     ]);
 

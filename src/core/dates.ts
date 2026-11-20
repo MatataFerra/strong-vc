@@ -29,3 +29,8 @@ export function weekStart(date: string): string {
 export function minutesBetween(start: string, end: string): number {
   return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
 }
+
+/** The day Registros shows: the one the user picked, or today (re-evaluated, so it rolls over at midnight). */
+export function resolveLogDate(pinned: string | null, now: Date): string {
+  return pinned ?? localDate(now);
+}

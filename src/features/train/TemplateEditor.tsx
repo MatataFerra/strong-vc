@@ -15,6 +15,7 @@ import { Screen } from '../../ui/Screen';
 import { space } from '../../ui/theme';
 import { useToast } from '../../ui/Toast';
 import { useAsync } from '../../ui/useAsync';
+import { useSafeAction } from '../../ui/useSafeAction';
 import { Body, Muted } from '../../ui/Typography';
 
 interface Pick {
@@ -31,11 +32,12 @@ export function TemplateEditor() {
   const [picked, setPicked] = useState<Record<number, Pick>>({});
   const [newExercise, setNewExercise] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { run, busy } = useSafeAction();
 
   if (exercises.error) return <ErrorRetry message="No se pudieron cargar los ejercicios." onRetry={exercises.reload} />;
   if (!exercises.data) return <Loading />;
 
-  const save = async () => {
+  const save = () => run(async () => {
     const n = validateName(name);
     if (!n.ok) return setError(n.error);
     const items = [];
@@ -51,9 +53,9 @@ export function TemplateEditor() {
     await createTemplate(db, n.value, items);
     toast('Plantilla guardada');
     router.back();
-  };
+  });
 
-  const addExercise = async () => {
+  const addExercise = () => run(async () => {
     const n = validateName(newExercise);
     if (!n.ok) return setError(n.error);
     const id = await createExercise(db, n.value);
@@ -61,13 +63,13 @@ export function TemplateEditor() {
     setError(null);
     setPicked((p) => ({ ...p, [id]: { sets: '3', reps: '8' } }));
     exercises.reload();
-  };
+  });
 
   return (
     <Screen>
       <Field placeholder="Nombre de la plantilla" value={name} onChangeText={setName} maxLength={60} />
       {error && <Body accessibilityRole="alert">{error}</Body>}
-      <Button title="Guardar plantilla" onPress={save} />
+      <Button title="Guardar plantilla" onPress={save} disabled={busy} />
       <Card>
         <Muted>Ejercicio nuevo</Muted>
         <View style={styles.row}>

@@ -13,3 +13,8 @@ export function formatClock(seconds: number): string {
 export function toExpoWeekday(weekday: number): number {
   return (weekday % 7) + 1;
 }
+
+/** New rest length after a ±delta tweak; an already-finished rest counts as 0 left, never negative. */
+export function adjustedRestSeconds(endsAt: number, now: number, delta: number): number {
+  return Math.max(0, remainingSeconds(endsAt, now) + delta);
+}

@@ -12,8 +12,11 @@ export function buildJsonExport(data: Record<string, unknown[]>, now: Date): str
   return JSON.stringify(bundle, null, 2);
 }
 
+// Spreadsheets execute cells starting with these characters as formulas.
+const FORMULA_START = /^[=+\-@\t\r]/;
+
 const csvCell = (v: string | number) => {
-  const s = String(v);
+  const s = typeof v === 'string' && FORMULA_START.test(v) ? `'${v}` : String(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 

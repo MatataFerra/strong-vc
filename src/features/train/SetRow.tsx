@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { round2, fromKg, toKg, type WeightUnit } from '../../core/units';
 import type { WorkoutSet } from '../../core/types';
@@ -22,15 +22,30 @@ export function SetRow({ set, index, unit, onSave, onRemove }: Props) {
   const [reps, setReps] = useState(String(set.reps));
   const [error, setError] = useState<string | null>(null);
 
-  const toggle = async () => {
+  // Re-derive the inputs from the stored values whenever they or the display unit change.
+  useEffect(() => {
+    setWeight(String(round2(fromKg(set.weightKg, unit))));
+    setReps(String(set.reps));
+  }, [set.weightKg, set.reps, unit]);
+
+  const save = async (done: boolean) => {
     const result = validateSetInput({ weight, reps });
     if (!result.ok) {
       setError(result.error);
       return;
     }
     setError(null);
-    await onSave({ weightKg: toKg(result.value.weight, unit), reps: result.value.reps, done: !set.done });
+    await onSave({ weightKg: toKg(result.value.weight, unit), reps: result.value.reps, done });
   };
+
+  // A set already marked done keeps edits without having to untick and tick it again.
+  const saveIfDone = () => (set.done ? save(true) : undefined);
+
+  const confirmRemove = () =>
+    Alert.alert(`¿Quitar la serie ${index}?`, undefined, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Quitar', style: 'destructive', onPress: onRemove },
+    ]);
 
   return (
     <View>
@@ -40,6 +55,7 @@ export function SetRow({ set, index, unit, onSave, onRemove }: Props) {
           testID={`set-weight-${set.id}`}
           value={weight}
           onChangeText={setWeight}
+          onBlur={saveIfDone}
           keyboardType="decimal-pad"
           accessibilityLabel={`Peso serie ${index} en ${unit}`}
           style={styles.input}
@@ -49,6 +65,7 @@ export function SetRow({ set, index, unit, onSave, onRemove }: Props) {
           testID={`set-reps-${set.id}`}
           value={reps}
           onChangeText={setReps}
+          onBlur={saveIfDone}
           keyboardType="number-pad"
           accessibilityLabel={`Repeticiones serie ${index}`}
           style={styles.input}
@@ -59,8 +76,9 @@ export function SetRow({ set, index, unit, onSave, onRemove }: Props) {
           accessibilityRole="checkbox"
           accessibilityState={{ checked: set.done }}
           accessibilityLabel={`Marcar serie ${index} como hecha`}
-          onPress={toggle}
-          onLongPress={onRemove}
+          accessibilityHint="Mantené presionado para quitar la serie"
+          onPress={() => save(!set.done)}
+          onLongPress={confirmRemove}
           style={[styles.check, { borderColor: t.accent, backgroundColor: set.done ? t.accent : 'transparent' }]}
         >
           <Text style={{ color: set.done ? t.accentText : t.accent, fontWeight: '700' }}>✓</Text>

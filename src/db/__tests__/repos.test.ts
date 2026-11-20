@@ -101,3 +101,12 @@ test('export includes every user table', async () => {
     ['daily_logs', 'exercises', 'reminders', 'routine_days', 'settings', 'template_exercises', 'templates', 'workout_sets', 'workouts'],
   );
 });
+
+test('concurrent starts (double tap) create a single active workout', async () => {
+  const db = await createTestDb();
+  const [t] = await listTemplates(db);
+  const [a, b] = await Promise.all([startWorkout(db, t.id), startWorkout(db, t.id)]);
+  expect(a).toBe(b);
+  await finishWorkout(db, a);
+  expect(await getActiveWorkout(db)).toBeNull();
+});

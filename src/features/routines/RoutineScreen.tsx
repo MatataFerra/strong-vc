@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useDb } from '../../db/DbProvider';
@@ -27,6 +28,9 @@ export function RoutineScreen() {
     setDraft(days);
     return { templates };
   }, [db]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Reload on focus so templates created or deleted elsewhere are reflected.
+  useFocusEffect(useCallback(() => reload(), [reload]));
 
   if (error) return <ErrorRetry message="No se pudo cargar tu rutina." onRetry={reload} />;
   if (!data || !draft) return <Loading />;
@@ -36,8 +40,14 @@ export function RoutineScreen() {
 
   const save = async () => {
     const days: RoutineDay[] = Object.entries(draft).map(([weekday, templateId]) => ({ weekday: Number(weekday), templateId }));
-    await saveRoutine(db, days);
-    toast('Rutina guardada');
+    try {
+      await saveRoutine(db, days);
+      setSaveError(null);
+      toast('Rutina guardada');
+    } catch {
+      setSaveError('No se pudo guardar la rutina. Probá de nuevo.');
+      reload();
+    }
   };
 
   return (
@@ -62,6 +72,7 @@ export function RoutineScreen() {
         );
       })}
       {trainingDays > 6 && <Body>Los días de descanso también son parte del plan.</Body>}
+      {saveError && <Body accessibilityRole="alert">{saveError}</Body>}
       <Button title="Guardar rutina" onPress={save} />
     </Screen>
   );

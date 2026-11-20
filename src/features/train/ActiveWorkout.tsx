@@ -55,7 +55,7 @@ export function ActiveWorkout({ workout, sets, settings, onChanged }: Props) {
 
   const saveSet = async (set: WorkoutSet, patch: { weightKg: number; reps: number; done: boolean }) => {
     await updateSet(db, set.id, patch);
-    if (patch.done) await startRest(restSeconds);
+    if (patch.done && !set.done) await startRest(restSeconds);
     onChanged();
   };
 

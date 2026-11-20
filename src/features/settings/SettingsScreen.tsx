@@ -7,7 +7,7 @@ import { getSettings, setSetting, type Settings } from '../../db/repos/settings'
 import { deleteAllData } from '../../db/repos/workouts';
 import { isHealthAvailable, isHealthEnabled, requestPermission, type HealthKind } from '../../health/healthkit';
 import { cancelAllNotifications, cancelNotification } from '../../notifications/notifications';
-import { addReminder, applyMute } from '../../notifications/reminders';
+import { addReminder, applyMute, setReminderEnabled } from '../../notifications/reminders';
 import { exportData, shareFile } from '../../services/exportService';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -163,6 +163,14 @@ export function SettingsScreen() {
             <Body style={{ flex: 1 }}>
               {DAYS[r.weekday - 1]} {String(r.hour).padStart(2, '0')}:{String(r.minute).padStart(2, '0')}
             </Body>
+            <Switch
+              accessibilityLabel={`Recordatorio ${DAYS[r.weekday - 1]} activo`}
+              value={r.enabled}
+              onValueChange={async (on) => {
+                await setReminderEnabled(db, r.id, on, settings.remindersMuted);
+                reload();
+              }}
+            />
             <Button
               title="Quitar"
               variant="secondary"

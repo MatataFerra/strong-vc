@@ -10,6 +10,7 @@ import { parseDecimal, validateScale } from '../../core/validation';
 import { useDb } from '../../db/DbProvider';
 import { addLog, deleteLog, listLogs } from '../../db/repos/logs';
 import { getSettings } from '../../db/repos/settings';
+import { isHealthEnabled, readSleepMinutes, readSteps } from '../../health/healthkit';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { EmptyState } from '../../ui/EmptyState';
@@ -52,7 +53,16 @@ export function LogsScreen() {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { data, error: loadError, reload } = useAsync(
-    async () => ({ logs: await listLogs(db, date, date), settings: await getSettings(db) }),
+    async () => {
+      const settings = await getSettings(db);
+      const health = isHealthEnabled();
+      return {
+        logs: await listLogs(db, date, date),
+        settings,
+        sleep: health && settings.healthSleep ? await readSleepMinutes(date) : null,
+        steps: health && settings.healthSteps ? await readSteps(date) : null,
+      };
+    },
     [db, date],
   );
   useFocusEffect(useCallback(() => reload(), [reload]));
@@ -139,6 +149,13 @@ export function LogsScreen() {
         {error && <Body accessibilityRole="alert">{error}</Body>}
         {kind !== 'mood' && kind !== 'energy' && <Button title="Guardar" onPress={submit} />}
       </Card>
+
+      {(data.sleep !== null || data.steps !== null) && (
+        <Card>
+          {data.sleep !== null && <Body>Sueño (Salud): {Math.floor(data.sleep / 60)} h {data.sleep % 60} min</Body>}
+          {data.steps !== null && <Body>Pasos (Salud): {data.steps}</Body>}
+        </Card>
+      )}
 
       {data.logs.length === 0 ? (
         <EmptyState title="Nada registrado este día" message="Todo es opcional." />

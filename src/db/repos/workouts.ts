@@ -21,8 +21,19 @@ async function lastWeight(db: Db, exerciseId: number): Promise<number> {
   return row?.w ?? 0;
 }
 
-/** Starts a workout from a template (or free when null). Returns the active one if it already exists. */
-export async function startWorkout(db: Db, templateId: number | null, now = new Date()): Promise<number> {
+let startQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Starts a workout from a template (or free when null). Returns the active one if it already exists.
+ * Calls are serialized so a double tap cannot create two active workouts.
+ */
+export function startWorkout(db: Db, templateId: number | null, now = new Date()): Promise<number> {
+  const run = startQueue.then(() => startWorkoutNow(db, templateId, now));
+  startQueue = run.catch(() => undefined);
+  return run;
+}
+
+async function startWorkoutNow(db: Db, templateId: number | null, now: Date): Promise<number> {
   const active = await db.getFirstAsync<{ id: number }>('SELECT id FROM workouts WHERE ended_at IS NULL');
   if (active) return active.id;
 

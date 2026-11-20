@@ -28,3 +28,12 @@ export async function addReminder(
   await upsertReminder(db, { ...r, enabled: true, notificationId });
   return { scheduled: notificationId !== null };
 }
+
+/** Turns one reminder on or off; it is only scheduled when enabled and reminders are not globally muted. */
+export async function setReminderEnabled(db: Db, id: number, enabled: boolean, muted: boolean): Promise<void> {
+  const r = (await listReminders(db)).find((x) => x.id === id);
+  if (!r) return;
+  await cancelNotification(r.notificationId);
+  const notificationId = enabled && !muted ? await scheduleWeekly(r.weekday, r.hour, r.minute) : null;
+  await upsertReminder(db, { ...r, enabled, notificationId });
+}

@@ -8,7 +8,7 @@ import { deleteAllData } from '../../db/repos/workouts';
 import { isHealthAvailable, isHealthEnabled, requestPermission, type HealthKind } from '../../health/healthkit';
 import { cancelAllNotifications, cancelNotification } from '../../notifications/notifications';
 import { addReminder, applyMute } from '../../notifications/reminders';
-import { exportData } from '../../services/exportService';
+import { exportData, shareFile } from '../../services/exportService';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { ErrorRetry } from '../../ui/ErrorRetry';
@@ -49,6 +49,7 @@ export function SettingsScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [csvUri, setCsvUri] = useState<string | null>(null);
   const { data, error, reload } = useAsync(
     async () => ({
       settings: await getSettings(db),
@@ -97,7 +98,8 @@ export function SettingsScreen() {
     setExporting(true);
     setExportError(null);
     try {
-      await exportData(db);
+      const { files } = await exportData(db);
+      setCsvUri(files[1]);
       toast('Exportación lista');
     } catch (e) {
       setExportError(e instanceof Error ? e.message : 'No se pudo exportar.');
@@ -204,6 +206,13 @@ export function SettingsScreen() {
       <Card>
         <Muted>Exporta un respaldo completo (JSON) y tus series (CSV) para guardarlos en Archivos o enviarlos por AirDrop.</Muted>
         <Button title={exporting ? 'Exportando…' : 'Exportar datos'} onPress={doExport} disabled={exporting} />
+        {csvUri && (
+          <Button
+            title="Compartir series (CSV)"
+            variant="secondary"
+            onPress={() => shareFile(csvUri).catch((e: Error) => setExportError(e.message))}
+          />
+        )}
         {exportError && <ErrorRetry message={exportError} onRetry={doExport} />}
         <Button title="Borrar todos los datos" variant="secondary" onPress={confirmDelete} />
       </Card>

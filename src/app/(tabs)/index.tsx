@@ -1,5 +1,3 @@
-import { Text } from 'react-native';
+import { TrainScreen } from '../../features/train/TrainScreen';
 
-export default function Screen() {
-  return <Text>index</Text>;
-}
+export default TrainScreen;

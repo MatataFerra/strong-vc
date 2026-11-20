@@ -1,5 +1,3 @@
-import { Text } from 'react-native';
+import { RoutineScreen } from '../../features/routines/RoutineScreen';
 
-export default function Screen() {
-  return <Text>routines</Text>;
-}
+export default RoutineScreen;
